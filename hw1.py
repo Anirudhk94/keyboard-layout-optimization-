@@ -33,33 +33,27 @@ def get_random_layout():
 def makeDigramTable(data_path):
     # Make a Digram Table , which is a dictionary with key format (letter_i,letter_j) to it's Pij
     # You could safely ignore words that have only 1 character when constructing this dictionary
-    
-    fp = open(data_path)
-    content=fp.readlines()
-    fp.close()
+    with open(data_path) as f:
+        word_count_pairs = [line.split('\t')[:2]
+                            for line in f]
 
-    pairs = {}
+        word_count_pairs = [((word[i], word[i + 1]), int(count))
+                            for word, count in word_count_pairs
+                            for i in range(len(word) - 1)
+                            if len(word) > 1]
 
-    for line in content :
-        word = line.split('\t')[0]
-        freq = int(line.split('\t')[1])
-        if len(word) == 1 :
-            continue 
-        for i in range(len(word) - 1) :
-            tup = (word[i], word[i+1])
-            if tup in pairs :
-                pairs[tup] = pairs[tup] + freq
-            else :
-                pairs[tup] = freq
-        
-    totalTuples = sum(pairs.values())
-    for tup in pairs.keys() :
-        occurances = pairs[tup]
-        pairs[tup] = occurances * 1.0 / totalTuples * 1.0
-    
-    # print "digram table :"
-    # print pairs    
-    return pairs
+        digram_count_map = {}
+
+        for digram, count in word_count_pairs:
+            digram_count_map[digram] = digram_count_map.get(digram, 0.0) + count
+
+        total_digram_frequency = sum(digram_count_map.values())
+
+        digram_count_map = {digram: count / total_digram_frequency
+                            for digram, count in digram_count_map.items()}
+
+        return digram_count_map
+
 
 def FittsLaw(W,D):
     #implement the Fitt's Law based on the given arguments and constant
@@ -72,60 +66,58 @@ def FittsLaw(W,D):
 
 def computeAMT(layout, digram_table):
     # Compute the average movement time
-    MT=0.0
-    for i in layout.keys() :
-        x1 = float(layout[i][0]) 
-        y1 = float(layout[i][1])
-        # print x1
-        for j in layout.keys() :
-            x2 = float(layout[j][0])
-            y2 = float(layout[j][1])
+    AMT = 0.0
+
+    for char1 in layout:
+        x1, y1 = float(layout[char1][0]), float(layout[char1][1])
+
+        for char2 in layout:
+            x2, y2 = float(layout[char2][0]), float(layout[char2][1])
+
             W = 1.0
-            D = float(m.sqrt((x2 - x1)**2 + (y2 - y1)**2))
-            tup = (i, j)
-            if(tup in digram_table) :
-                MT = MT + (FittsLaw(W, D) * digram_table[tup])
-    # print MT        
-    return MT
+
+            X = (x2 - x1) ** 2
+            Y = (y2 - y1) ** 2
+            D = float(m.sqrt(X + Y))
+
+            MT = FittsLaw(W, D)
+            P = digram_table.get((char1, char2), 0.0)
+
+            AMT += (MT * P)
+
+    return AMT
+
+
+def swap(layout, a, b):
+    layout1 = layout.copy()
+    layout1[a], layout1[b] = layout1[b], layout1[a]
+    return layout1
+
 
 def SA(num_iter, num_random_start, tbl):
-    # Do the SA with num_iter iterations, you can random start by num_random_start times
-    # the tbl arguments were the digram table
-    globalCost = sys.float_info.max
-    bestLayout = {}
-    r = 0
-    while r < num_random_start :
-        starting_state = get_random_layout()
-        k=0
-        cost = computeAMT(starting_state,tbl)
+    final_result = ({}, 1.0)
 
-        while k < num_iter :
-            key1 = random.choice(starting_state.keys())
-            key2 = random.choice(starting_state.keys())
+    for _ in range(num_random_start):
+        ss = get_random_layout()
+        cost = computeAMT(ss, tbl)
 
-            temp_state = starting_state
+        for _ in range(num_iter):
+            a = random.choice(ss.keys())
+            b = random.choice(ss.keys())
+            while b == a:
+                b = random.choice(ss.keys())
 
-            temp = temp_state[key1]
-            temp_state[key1] = temp_state[key2]
-            temp_state[key2] = temp
+            new_layout = swap(ss, a, b)
+            new_cost = computeAMT(new_layout, tbl)
+            if new_cost < cost:
+                cost = new_cost
+                ss = new_layout
 
-            localCost = computeAMT(temp_state, tbl)
+        if final_result[1] > cost:
+            final_result = (ss, cost)
 
-            if localCost < cost :
-                cost = localCost
-                starting_state = temp_state
-
-            k += 1    
-
-        if globalCost > cost :
-            bestLayout = starting_state
-            globalCost = cost
-        r += 1
-
-    final_result = (bestLayout, globalCost)    
-
-    # # # #--------you should return a tuple of (optimal_layout,optimal_MT)----
     return final_result
+
 
 def printLayout(layout):
     # use this function to print the layout
@@ -139,6 +131,7 @@ def printLayout(layout):
         for c in range(5):
             row+=keyboard[r][c][0] + '  '
         print row
+
 
 if __name__ == '__main__':
 
@@ -162,6 +155,3 @@ if __name__ == '__main__':
     result, cost = SA(k,rs,tbl)
     print "Optimal MT:", cost
     printLayout(result)
-
-    
-
