@@ -96,7 +96,7 @@ def swap(layout, a, b):
 
 def SA(num_iter, num_random_start, tbl):
     final_result = ({}, 1.0)
-
+    count = 0
     for _ in range(num_random_start):
         ss = get_random_layout()
         cost = computeAMT(ss, tbl)
@@ -114,7 +114,12 @@ def SA(num_iter, num_random_start, tbl):
                 ss = new_layout
 
         if final_result[1] > cost:
+            count = 0
             final_result = (ss, cost)
+        else:
+            count += 1
+            if final_result[1] < 0.239 and count > 10:
+                break
 
     return final_result
 
